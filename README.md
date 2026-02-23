@@ -55,6 +55,16 @@ clawgarda deep-scan --workspace /Users/ddq/openclaw --exclude-glob "state/worksp
 clawgarda deep-scan --workspace /Users/ddq/openclaw --use-rlm --rlm-model gpt-5-mini
 ```
 
+Deep baseline workflow (v1.3):
+
+```bash
+# Save baseline snapshot for deep-scan
+clawgarda deep-baseline save --workspace /Users/ddq/openclaw --path /Users/ddq/openclaw/.clawgarda/deep-baseline.json
+
+# Compare and fail only on NEW high+ deep findings
+clawgarda deep-baseline compare --workspace /Users/ddq/openclaw --path /Users/ddq/openclaw/.clawgarda/deep-baseline.json --fail-on-severity high
+```
+
 Use external rules file:
 
 ```bash

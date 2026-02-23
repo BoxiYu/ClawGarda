@@ -74,6 +74,25 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Exclude path glob for deep scan (repeatable)",
     )
 
+    deep_baseline = subparsers.add_parser("deep-baseline", help="Save or compare deep-scan baselines")
+    deep_base_sub = deep_baseline.add_subparsers(dest="deep_baseline_command", required=True)
+
+    dbsave = deep_base_sub.add_parser("save", help="Save deep-scan baseline")
+    dbsave.add_argument("--workspace", default=".", help="Workspace path")
+    dbsave.add_argument("--path", default=".clawgarda/deep-baseline.json", help="Baseline file path")
+    dbsave.add_argument("--use-rlm", action="store_true", help="Enable recursive-llm assisted context analysis")
+    dbsave.add_argument("--rlm-model", default="gpt-5-mini", help="Model name for RLM analysis")
+    dbsave.add_argument("--exclude-glob", action="append", default=None, help="Exclude path glob (repeatable)")
+
+    dbcmp = deep_base_sub.add_parser("compare", help="Compare deep-scan against baseline")
+    dbcmp.add_argument("--workspace", default=".", help="Workspace path")
+    dbcmp.add_argument("--path", default=".clawgarda/deep-baseline.json", help="Baseline file path")
+    dbcmp.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
+    dbcmp.add_argument("--fail-on-severity", choices=["critical", "high", "medium", "low"], default=None, help="Fail only when added findings meet/exceed this severity")
+    dbcmp.add_argument("--use-rlm", action="store_true", help="Enable recursive-llm assisted context analysis")
+    dbcmp.add_argument("--rlm-model", default="gpt-5-mini", help="Model name for RLM analysis")
+    dbcmp.add_argument("--exclude-glob", action="append", default=None, help="Exclude path glob (repeatable)")
+
     baseline = subparsers.add_parser("baseline", help="Save or compare scan baselines")
     baseline_sub = baseline.add_subparsers(dest="baseline_command", required=True)
 
@@ -159,6 +178,44 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(_render_table(findings))
         return 1 if findings else 0
+
+    if args.command == "deep-baseline" and args.deep_baseline_command == "save":
+        workspace = Path(args.workspace)
+        findings = run_deep_scan(
+            workspace=workspace,
+            use_rlm=args.use_rlm,
+            rlm_model=args.rlm_model,
+            exclude_globs=args.exclude_glob,
+        )
+        out = Path(args.path)
+        save_baseline(out, findings, workspace)
+        print(f"Saved deep baseline with {len(findings)} findings: {out}")
+        return 0
+
+    if args.command == "deep-baseline" and args.deep_baseline_command == "compare":
+        workspace = Path(args.workspace)
+        findings = run_deep_scan(
+            workspace=workspace,
+            use_rlm=args.use_rlm,
+            rlm_model=args.rlm_model,
+            exclude_globs=args.exclude_glob,
+        )
+        payload = load_baseline(Path(args.path))
+        diff = compare_findings(findings, payload)
+        if args.format == "json":
+            print(json.dumps(diff, indent=2))
+        else:
+            summary = diff["summary"]
+            print("Deep baseline comparison")
+            print(f"current={summary['current_total']} previous={summary['previous_total']} added={summary['added']} removed={summary['removed']}")
+            print("added IDs:", ", ".join(sorted({f['id'] for f in diff['added']})) or "none")
+            print("removed IDs:", ", ".join(sorted({f['id'] for f in diff['removed']})) or "none")
+            if args.fail_on_severity:
+                print(f"fail threshold: {args.fail_on_severity}")
+
+        if args.fail_on_severity:
+            return 1 if should_fail_on_added_severity(diff, args.fail_on_severity) else 0
+        return 1 if diff["summary"]["added"] > 0 else 0
 
     if args.command == "baseline" and args.baseline_command == "save":
         findings, workspace = _scan_with_args(args)
