@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import json
 
+from .copilot import load_findings_json, render_plan_markdown
 from .deepscan import findings_to_json as deep_findings_to_json, run_deep_scan
 from .fixer import apply_safe_patch, run_fix_safe
 from .reporting import (
@@ -104,6 +105,14 @@ def _build_parser() -> argparse.ArgumentParser:
     fix_apply.add_argument("--workspace", default=".", help="Workspace path")
     fix_apply.add_argument("--patch", required=True, help="Patch file path emitted by fix run")
     fix_apply.add_argument("--no-backup", action="store_true", help="Do not create backup before apply")
+
+    copilot = subparsers.add_parser("copilot", help="Copilot planning helpers")
+    copilot_sub = copilot.add_subparsers(dest="copilot_command", required=True)
+
+    cplan = copilot_sub.add_parser("plan", help="Generate prioritized remediation plan")
+    _add_common_scan_args(cplan)
+    cplan.add_argument("--from-json", default=None, help="Use existing findings JSON instead of running scan")
+    cplan.add_argument("--output", default="-", help="Output markdown path, '-' for stdout")
 
     return parser
 
@@ -217,6 +226,23 @@ def main(argv: list[str] | None = None) -> int:
             for b in backups:
                 print(f"- {b}")
         return 0
+
+    if args.command == "copilot" and args.copilot_command == "plan":
+        if args.from_json:
+            findings = load_findings_json(Path(args.from_json))
+            workspace = Path(args.workspace)
+        else:
+            findings, workspace = _scan_with_args(args)
+
+        md = render_plan_markdown(findings, workspace)
+        if args.output == "-":
+            print(md)
+        else:
+            out = Path(args.output)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(md, encoding="utf-8")
+            print(f"Wrote copilot plan: {out}")
+        return 1 if findings else 0
 
     parser.print_help()
     return 2

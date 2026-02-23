@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from clawgarda.cli import _render_table
+from clawgarda.copilot import render_plan_markdown
 from clawgarda.deepscan import run_deep_scan
 from clawgarda.fixer import apply_safe_patch, emit_safe_patch, run_fix_safe
 from clawgarda.reporting import compare_findings, render_markdown_report, render_pr_template, should_fail_on_added_severity
@@ -205,6 +206,14 @@ class ScannerTests(unittest.TestCase):
             findings = run_deep_scan(workspace)
             ids = {f.id for f in findings}
             self.assertIn("CGD-001", ids)
+
+    def test_copilot_plan_render(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            findings = run_scan(workspace, allowed_root=workspace)
+            plan = render_plan_markdown(findings, workspace)
+            self.assertIn("# ClawGarda Copilot Plan", plan)
+            self.assertIn("Prioritized remediation roadmap", plan)
 
 
 if __name__ == "__main__":

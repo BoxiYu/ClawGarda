@@ -122,6 +122,17 @@ clawgarda report --workspace /Users/ddq/openclaw --output reports/clawgarda.md
 clawgarda report --workspace /Users/ddq/openclaw --pr-template --output reports/PR_BODY.md
 ```
 
+## Copilot plan (v1.1)
+
+```bash
+# Generate plan from current scan
+clawgarda copilot plan --workspace /Users/ddq/openclaw --output reports/REMEDIATION_PLAN.md
+
+# Or generate plan from existing findings JSON
+clawgarda scan --workspace /Users/ddq/openclaw --format json > reports/findings.json
+clawgarda copilot plan --workspace /Users/ddq/openclaw --from-json reports/findings.json --output reports/REMEDIATION_PLAN.md
+```
+
 Exit code is `0` when no findings, `1` when findings exist.
 
 ## Finding schema
