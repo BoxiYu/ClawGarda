@@ -67,6 +67,12 @@ def _build_parser() -> argparse.ArgumentParser:
     deep.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
     deep.add_argument("--use-rlm", action="store_true", help="Enable recursive-llm assisted context analysis")
     deep.add_argument("--rlm-model", default="gpt-5-mini", help="Model name for RLM analysis")
+    deep.add_argument(
+        "--exclude-glob",
+        action="append",
+        default=None,
+        help="Exclude path glob for deep scan (repeatable)",
+    )
 
     baseline = subparsers.add_parser("baseline", help="Save or compare scan baselines")
     baseline_sub = baseline.add_subparsers(dest="baseline_command", required=True)
@@ -146,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
             workspace=Path(args.workspace),
             use_rlm=args.use_rlm,
             rlm_model=args.rlm_model,
+            exclude_globs=args.exclude_glob,
         )
         if args.format == "json":
             print(deep_findings_to_json(findings))

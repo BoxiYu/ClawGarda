@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import fnmatch
 import json
 import re
 from typing import Any
@@ -9,6 +10,16 @@ from .scanner import Finding
 
 MAX_DEEP_FILES = 400
 MAX_DEEP_FILE_SIZE = 2_000_000
+
+DEFAULT_DEEP_EXCLUDE_GLOBS = [
+    "projects/adk-python/**",
+    "projects/nanoclaw/**",
+    "projects/recursive-llm/**",
+    "**/node_modules/**",
+    "**/.git/**",
+]
+
+PLACEHOLDER_MARKERS = ["example", "sample", "placeholder", "changeme", "your_token", "your-api-key"]
 
 LOG_PATTERNS: list[tuple[str, str, str, str]] = [
     ("CGD-001", "high", r"(?i)pairing required", "Gateway pairing/auth failures observed in logs."),
@@ -23,11 +34,21 @@ SECRET_PATTERNS: list[tuple[str, str, str, str]] = [
 ]
 
 
-def _iter_files(workspace: Path) -> list[Path]:
+def _is_excluded(path: Path, workspace: Path, exclude_globs: list[str]) -> bool:
+    try:
+        rel = str(path.relative_to(workspace)).replace("\\", "/")
+    except Exception:
+        rel = str(path).replace("\\", "/")
+    return any(fnmatch.fnmatch(rel, pat) for pat in exclude_globs)
+
+
+def _iter_files(workspace: Path, exclude_globs: list[str]) -> list[Path]:
     out: list[Path] = []
     for p in workspace.rglob("*"):
         if len(out) >= MAX_DEEP_FILES:
             break
+        if _is_excluded(p, workspace, exclude_globs):
+            continue
         if not p.is_file() or p.is_symlink():
             continue
         if p.suffix.lower() not in {".log", ".jsonl", ".txt", ".md", ".json"}:
@@ -48,6 +69,14 @@ def _scan_file_text(path: Path) -> str:
         return ""
 
 
+def _looks_like_placeholder(text: str, match_span: tuple[int, int]) -> bool:
+    start, end = match_span
+    window_start = max(0, start - 80)
+    window_end = min(len(text), end + 80)
+    ctx = text[window_start:window_end].lower()
+    return any(marker in ctx for marker in PLACEHOLDER_MARKERS)
+
+
 def _make(rule_id: str, title: str, severity: str, evidence: str, fix: str, confidence: str = "medium") -> Finding:
     return Finding(
         id=rule_id,
@@ -59,11 +88,19 @@ def _make(rule_id: str, title: str, severity: str, evidence: str, fix: str, conf
     )
 
 
-def run_deep_scan(workspace: Path, use_rlm: bool = False, rlm_model: str = "gpt-5-mini") -> list[Finding]:
+def run_deep_scan(
+    workspace: Path,
+    use_rlm: bool = False,
+    rlm_model: str = "gpt-5-mini",
+    exclude_globs: list[str] | None = None,
+) -> list[Finding]:
     workspace = workspace.resolve()
     findings: list[Finding] = []
 
-    files = _iter_files(workspace)
+    deep_excludes = list(DEFAULT_DEEP_EXCLUDE_GLOBS)
+    if exclude_globs:
+        deep_excludes.extend(exclude_globs)
+    files = _iter_files(workspace, deep_excludes)
     for path in files:
         text = _scan_file_text(path)
         if not text:
@@ -83,17 +120,21 @@ def run_deep_scan(workspace: Path, use_rlm: bool = False, rlm_model: str = "gpt-
                 )
 
         for rid, sev, pat, title in SECRET_PATTERNS:
-            if re.search(pat, text):
-                findings.append(
-                    _make(
-                        rid,
-                        title,
-                        sev,
-                        f"{path}: matched sensitive pattern `{pat}`",
-                        "Remove/rotate exposed credentials and avoid logging secrets.",
-                        confidence="medium",
-                    )
+            m = re.search(pat, text)
+            if not m:
+                continue
+            if _looks_like_placeholder(text, m.span()):
+                continue
+            findings.append(
+                _make(
+                    rid,
+                    title,
+                    sev,
+                    f"{path}: matched sensitive pattern `{pat}`",
+                    "Remove/rotate exposed credentials and avoid logging secrets.",
+                    confidence="medium",
                 )
+            )
 
     # Dependency hygiene signals
     package_json = workspace / "package.json"

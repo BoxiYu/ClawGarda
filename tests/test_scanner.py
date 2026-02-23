@@ -207,6 +207,27 @@ class ScannerTests(unittest.TestCase):
             ids = {f.id for f in findings}
             self.assertIn("CGD-001", ids)
 
+    def test_deep_scan_respects_exclude_glob(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            noisy = workspace / "logs" / "noise.log"
+            noisy.parent.mkdir(parents=True, exist_ok=True)
+            noisy.write_text("pairing required", encoding="utf-8")
+
+            findings = run_deep_scan(workspace, exclude_globs=["logs/**"])
+            ids = {f.id for f in findings}
+            self.assertNotIn("CGD-001", ids)
+
+    def test_deep_scan_ignores_placeholder_secret_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            readme = workspace / "README.md"
+            readme.write_text("Example token: 12345678:sample_placeholder_token_abcdefghijklmnopqrstuvwxyz", encoding="utf-8")
+
+            findings = run_deep_scan(workspace, exclude_globs=[])
+            ids = {f.id for f in findings}
+            self.assertNotIn("CGD-010", ids)
+
     def test_copilot_plan_render(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)

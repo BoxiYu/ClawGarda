@@ -48,6 +48,9 @@ Deep scan mode (logs/artifacts/deps):
 clawgarda deep-scan --workspace /Users/ddq/openclaw
 clawgarda deep-scan --workspace /Users/ddq/openclaw --format json
 
+# Optional: add extra excludes to reduce noise
+clawgarda deep-scan --workspace /Users/ddq/openclaw --exclude-glob "state/workspace/**"
+
 # Optional RLM-assisted large-context analysis (best effort)
 clawgarda deep-scan --workspace /Users/ddq/openclaw --use-rlm --rlm-model gpt-5-mini
 ```
