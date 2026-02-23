@@ -76,6 +76,16 @@ clawgarda baseline compare --workspace /Users/ddq/openclaw --path .clawgarda/bas
 clawgarda baseline compare --workspace /Users/ddq/openclaw --path .clawgarda/baseline.json --format json
 ```
 
+## Safe fix scaffold (v0.6)
+
+```bash
+# preview only
+clawgarda fix --safe --dry-run --workspace /Users/ddq/openclaw
+
+# apply low-risk files (.clawgarda/policy.json and remediation-plan.md)
+clawgarda fix --safe --workspace /Users/ddq/openclaw
+```
+
 ## Markdown report (v0.3)
 
 ```bash
@@ -95,5 +105,6 @@ Each finding includes:
 - `id`
 - `title`
 - `severity`
+- `confidence`
 - `evidence`
 - `fix`

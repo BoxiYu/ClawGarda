@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import json
 
+from .fixer import run_fix_safe
 from .reporting import compare_findings, load_baseline, render_markdown_report, save_baseline
 from .scanner import Finding, findings_to_json, findings_to_sarif, run_scan
 
@@ -13,8 +14,8 @@ def _render_table(findings: list[Finding]) -> str:
     if not findings:
         return "No findings."
 
-    headers = ["ID", "Severity", "Title", "Evidence", "Fix"]
-    rows = [[f.id, f.severity, f.title, f.evidence, f.fix] for f in findings]
+    headers = ["ID", "Severity", "Confidence", "Title", "Evidence", "Fix"]
+    rows = [[f.id, f.severity, f.confidence, f.title, f.evidence, f.fix] for f in findings]
     widths = [len(h) for h in headers]
 
     for row in rows:
@@ -67,6 +68,11 @@ def _build_parser() -> argparse.ArgumentParser:
     report = subparsers.add_parser("report", help="Generate markdown report")
     _add_common_scan_args(report)
     report.add_argument("--output", default="-", help="Output markdown path, '-' for stdout")
+
+    fix = subparsers.add_parser("fix", help="Apply safe low-risk fixes")
+    _add_common_scan_args(fix)
+    fix.add_argument("--safe", action="store_true", help="Enable safe fix mode")
+    fix.add_argument("--dry-run", action="store_true", help="Preview only; do not write files")
 
     return parser
 
@@ -126,6 +132,22 @@ def main(argv: list[str] | None = None) -> int:
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(md, encoding="utf-8")
             print(f"Wrote markdown report: {out}")
+        return 1 if findings else 0
+
+    if args.command == "fix":
+        if not args.safe:
+            print("Refusing to run: only --safe mode is implemented.")
+            return 2
+        findings, workspace = _scan_with_args(args)
+        plan = run_fix_safe(workspace, findings, dry_run=args.dry_run)
+        mode = "DRY-RUN" if args.dry_run else "APPLY"
+        print(f"Fix mode: {mode}")
+        for action in plan.actions:
+            print(f"- {action}")
+        if plan.wrote_files:
+            print("Wrote files:")
+            for p in plan.wrote_files:
+                print(f"  - {p}")
         return 1 if findings else 0
 
     parser.print_help()

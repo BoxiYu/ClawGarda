@@ -44,6 +44,7 @@ class Finding:
     severity: str
     evidence: str
     fix: str
+    confidence: str = "medium"
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -82,12 +83,27 @@ def load_rules(path: Path | None = None) -> dict[str, Rule]:
     return rules
 
 
-def _make_finding(rules: dict[str, Rule], rid: str, evidence: str, severity: str | None = None, title: str | None = None, fix: str | None = None) -> Finding:
+def _make_finding(
+    rules: dict[str, Rule],
+    rid: str,
+    evidence: str,
+    severity: str | None = None,
+    title: str | None = None,
+    fix: str | None = None,
+    confidence: str = "medium",
+) -> Finding:
     rule = rules.get(rid)
     base_title = title or (rule.title if rule else rid)
     base_severity = severity or (rule.severity if rule else "medium")
     base_fix = fix or (rule.fix if rule else "Review and remediate.")
-    return Finding(id=rid, title=base_title, severity=base_severity, evidence=evidence, fix=base_fix)
+    return Finding(
+        id=rid,
+        title=base_title,
+        severity=base_severity,
+        evidence=evidence,
+        fix=base_fix,
+        confidence=confidence,
+    )
 
 
 def _find_gateway_config(workspace: Path) -> Path | None:
@@ -113,19 +129,22 @@ def _load_json(path: Path) -> dict[str, Any]:
         return {}
 
 
-def _extract_gateway_settings(data: dict[str, Any]) -> tuple[str | None, int | None, str | None, str | None]:
+def _extract_gateway_settings(data: dict[str, Any]) -> tuple[str | None, int | None, str | None, str | None, str | None]:
     gateway = data.get("gateway") if isinstance(data.get("gateway"), dict) else data
     bind = gateway.get("bind") if isinstance(gateway, dict) else None
     host = gateway.get("host") if isinstance(gateway, dict) else None
-    token = gateway.get("auth_token") if isinstance(gateway, dict) else None
-    password = gateway.get("password") if isinstance(gateway, dict) else None
+    auth = gateway.get("auth") if isinstance(gateway, dict) and isinstance(gateway.get("auth"), dict) else {}
+    token = auth.get("token") if isinstance(auth.get("token"), str) else gateway.get("auth_token") if isinstance(gateway, dict) else None
+    password = auth.get("password") if isinstance(auth.get("password"), str) else gateway.get("password") if isinstance(gateway, dict) else None
+    mode = auth.get("mode") if isinstance(auth.get("mode"), str) else gateway.get("auth_mode") if isinstance(gateway, dict) and isinstance(gateway.get("auth_mode"), str) else None
     port = gateway.get("port") if isinstance(gateway, dict) else None
 
     bind_value = bind or host
     port_value = int(port) if isinstance(port, int) or (isinstance(port, str) and port.isdigit()) else DEFAULT_GATEWAY_PORT
     token_value = token if isinstance(token, str) else None
     password_value = password if isinstance(password, str) else None
-    return bind_value, port_value, token_value, password_value
+    mode_value = mode.strip().lower() if isinstance(mode, str) and mode.strip() else None
+    return bind_value, port_value, token_value, password_value, mode_value
 
 
 def _is_loopback(bind_value: str | None) -> bool:
@@ -196,27 +215,86 @@ def _check_gateway_bind(bind_value: str | None, config_path: Path | None, rules:
     )
 
 
-def _check_gateway_auth(token: str | None, password: str | None, config_path: Path | None, rules: dict[str, Rule]) -> Finding | None:
-    if (token and token.strip()) or (password and password.strip()):
+def _check_gateway_auth(token: str | None, password: str | None, mode: str | None, config_path: Path | None, rules: dict[str, Rule]) -> Finding | None:
+    has_token = bool(token and token.strip())
+    has_password = bool(password and password.strip())
+    location = str(config_path or "gateway config")
+
+    if mode == "off":
+        return _make_finding(
+            rules,
+            rid="CGA-002",
+            severity="high",
+            evidence=f"`gateway.auth.mode` is `off` in {location}; gateway authentication is disabled",
+            confidence="high",
+        )
+
+    if mode == "token":
+        if has_token:
+            return None
+        return _make_finding(
+            rules,
+            rid="CGA-002",
+            severity="critical",
+            evidence=f"`gateway.auth.mode` is `token` but `gateway.auth.token`/`auth_token` is missing in {location}",
+            confidence="high",
+        )
+
+    if mode == "password":
+        if has_password:
+            return None
+        return _make_finding(
+            rules,
+            rid="CGA-002",
+            severity="critical",
+            evidence=f"`gateway.auth.mode` is `password` but `gateway.auth.password`/`password` is missing in {location}",
+            confidence="high",
+        )
+
+    if has_token or has_password:
         return None
     return _make_finding(
         rules,
         rid="CGA-002",
-        evidence=f"Neither `auth_token` nor `password` is configured in {config_path or 'gateway config'}",
+        severity="medium",
+        evidence=f"Authentication mode is not set and neither token nor password is configured in {location}",
+        confidence="medium",
     )
+
+
+def _is_placeholder_token(value: str) -> bool:
+    normalized = value.strip().lower()
+    placeholder_markers = (
+        "example",
+        "sample",
+        "placeholder",
+        "replace",
+        "your_",
+        "your-",
+        "changeme",
+        "<token>",
+        "{token}",
+    )
+    if any(marker in normalized for marker in placeholder_markers):
+        return True
+    if normalized.endswith(":xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"):
+        return True
+    return False
 
 
 def _check_telegram_token_in_config(config_text: str, config_path: Path | None, rules: dict[str, Rule]) -> Finding | None:
-    match = TELEGRAM_TOKEN_PATTERN.search(config_text)
-    if not match:
-        return None
-    token = match.group(0)
-    masked = token[:6] + "..." + token[-4:]
-    return _make_finding(
-        rules,
-        rid="CGA-003",
-        evidence=f"Token-like value `{masked}` found in {config_path or 'config'}",
-    )
+    for match in TELEGRAM_TOKEN_PATTERN.finditer(config_text):
+        token = match.group(0)
+        if _is_placeholder_token(token):
+            continue
+        masked = token[:6] + "..." + token[-4:]
+        return _make_finding(
+            rules,
+            rid="CGA-003",
+            evidence=f"Token-like value `{masked}` found in {config_path or 'config'}",
+            confidence="high",
+        )
+    return None
 
 
 def _check_workspace_path(workspace: Path, allowed_root: Path, rules: dict[str, Rule]) -> Finding | None:
@@ -304,12 +382,12 @@ def run_scan(
             config_text = ""
         config_data = _load_json(config_path)
 
-    bind_value, port, token, password = _extract_gateway_settings(config_data)
+    bind_value, port, token, password, auth_mode = _extract_gateway_settings(config_data)
 
     for check in (
         _check_workspace_path(workspace, allowed_root, rules),
         _check_gateway_bind(bind_value, config_path, rules),
-        _check_gateway_auth(token, password, config_path, rules),
+        _check_gateway_auth(token, password, auth_mode, config_path, rules),
         _check_telegram_token_in_config(config_text, config_path, rules),
         _check_default_port_exposure(bind_value, port, rules),
         _check_local_port_listening(bind_value, port, rules),
@@ -349,6 +427,7 @@ def findings_to_sarif(findings: list[Finding], tool_name: str = "clawgarda") -> 
                 "message": {
                     "text": f"{finding.title}. Evidence: {finding.evidence}. Fix: {finding.fix}",
                 },
+                "properties": {"severity": finding.severity, "confidence": finding.confidence},
             }
         )
 

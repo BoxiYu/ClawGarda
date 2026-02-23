@@ -10,7 +10,7 @@ from .scanner import Finding
 
 
 def _fingerprint(f: Finding) -> str:
-    return f"{f.id}|{f.title}|{f.severity}|{f.evidence}|{f.fix}"
+    return f"{f.id}|{f.title}|{f.severity}|{f.confidence}|{f.evidence}|{f.fix}"
 
 
 def save_baseline(path: Path, findings: list[Finding], workspace: Path) -> None:
