@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 import sys
 
-from .scanner import Finding, findings_to_json, run_scan
+from .scanner import Finding, findings_to_json, findings_to_sarif, run_scan
 
 
 def _render_table(findings: list[Finding]) -> str:
@@ -41,7 +41,9 @@ def _build_parser() -> argparse.ArgumentParser:
     scan = subparsers.add_parser("scan", help="Run workspace security checks")
     scan.add_argument("--workspace", default=".", help="Path to workspace to scan")
     scan.add_argument("--allowed-root", default="/Users/ddq/openclaw", help="Expected allowed workspace root")
-    scan.add_argument("--json", action="store_true", help="Output findings as JSON")
+    scan.add_argument("--rules", default=None, help="Path to external JSON rules file")
+    scan.add_argument("--json", action="store_true", help="Output findings as JSON (legacy shorthand)")
+    scan.add_argument("--format", choices=["table", "json", "sarif"], default="table", help="Output format")
     return parser
 
 
@@ -50,9 +52,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "scan":
-        findings = run_scan(Path(args.workspace), Path(args.allowed_root))
-        if args.json:
+        output_format = "json" if args.json else args.format
+        rules_path = Path(args.rules) if args.rules else None
+        findings = run_scan(Path(args.workspace), Path(args.allowed_root), rules_path=rules_path)
+        if output_format == "json":
             print(findings_to_json(findings))
+        elif output_format == "sarif":
+            print(findings_to_sarif(findings))
         else:
             print(_render_table(findings))
         return 1 if findings else 0

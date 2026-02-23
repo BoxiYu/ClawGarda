@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from clawgarda.scanner import run_scan
+from clawgarda.scanner import findings_to_sarif, run_scan
 
 
 class ScannerTests(unittest.TestCase):
@@ -42,6 +42,15 @@ class ScannerTests(unittest.TestCase):
             findings = run_scan(workspace, allowed_root=workspace)
             ids = {f.id for f in findings}
             self.assertIn("CGA-002", ids)
+
+    def test_sarif_output_contains_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            findings = run_scan(workspace, allowed_root=workspace)
+            sarif = json.loads(findings_to_sarif(findings))
+            self.assertEqual(sarif["version"], "2.1.0")
+            self.assertIn("runs", sarif)
+            self.assertGreaterEqual(len(sarif["runs"][0]["results"]), 1)
 
 
 if __name__ == "__main__":

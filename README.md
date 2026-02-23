@@ -32,6 +32,20 @@ JSON output:
 
 ```bash
 clawgarda scan --workspace /Users/ddq/openclaw --json
+# or
+clawgarda scan --workspace /Users/ddq/openclaw --format json
+```
+
+SARIF output (for code scanning / CI):
+
+```bash
+clawgarda scan --workspace /Users/ddq/openclaw --format sarif > clawgarda.sarif
+```
+
+Use external rules file:
+
+```bash
+clawgarda scan --workspace /Users/ddq/openclaw --rules ./src/clawgarda/rules/default.json
 ```
 
 Override allowed workspace root:

@@ -1,0 +1,40 @@
+{
+  "rules": [
+    {
+      "id": "CGA-001",
+      "title": "Gateway bind is not loopback",
+      "severity": "high",
+      "fix": "Bind gateway to 127.0.0.1 or localhost and place it behind a secure reverse proxy if external access is needed."
+    },
+    {
+      "id": "CGA-002",
+      "title": "Missing gateway auth token/password",
+      "severity": "critical",
+      "fix": "Configure a strong auth token or password for the gateway and load it from environment variables."
+    },
+    {
+      "id": "CGA-003",
+      "title": "Telegram bot token found in config",
+      "severity": "high",
+      "fix": "Remove bot token from tracked config files and load it from environment variables or a secret store."
+    },
+    {
+      "id": "CGA-004",
+      "title": "Workspace path outside allowed OpenClaw root",
+      "severity": "medium",
+      "fix": "Use a workspace under /Users/ddq/openclaw or update policy if this path is intentional."
+    },
+    {
+      "id": "CGA-005",
+      "title": "Default gateway port exposure risk",
+      "severity": "high",
+      "fix": "Change port from default and bind to loopback or protect with network controls."
+    },
+    {
+      "id": "CGA-006",
+      "title": "Possible plaintext secret in workspace file",
+      "severity": "high",
+      "fix": "Remove plaintext secrets and move them to environment variables or a secret manager."
+    }
+  ]
+}
