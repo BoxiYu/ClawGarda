@@ -54,6 +54,32 @@ Override allowed workspace root:
 clawgarda scan --workspace /tmp/demo --allowed-root /Users/ddq/openclaw
 ```
 
+## Baseline workflow (v0.3)
+
+Save current baseline:
+
+```bash
+clawgarda baseline save --workspace /Users/ddq/openclaw --path .clawgarda/baseline.json
+```
+
+Compare current state against baseline:
+
+```bash
+clawgarda baseline compare --workspace /Users/ddq/openclaw --path .clawgarda/baseline.json
+# JSON diff
+clawgarda baseline compare --workspace /Users/ddq/openclaw --path .clawgarda/baseline.json --format json
+```
+
+## Markdown report (v0.3)
+
+```bash
+# print to stdout
+clawgarda report --workspace /Users/ddq/openclaw
+
+# write to file
+clawgarda report --workspace /Users/ddq/openclaw --output reports/clawgarda.md
+```
+
 Exit code is `0` when no findings, `1` when findings exist.
 
 ## Finding schema

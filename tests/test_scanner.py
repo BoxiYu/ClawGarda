@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from clawgarda.reporting import compare_findings, render_markdown_report
 from clawgarda.scanner import findings_to_sarif, run_scan
 
 
@@ -51,6 +52,17 @@ class ScannerTests(unittest.TestCase):
             self.assertEqual(sarif["version"], "2.1.0")
             self.assertIn("runs", sarif)
             self.assertGreaterEqual(len(sarif["runs"][0]["results"]), 1)
+
+    def test_baseline_compare_and_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            # previous baseline has no findings
+            previous = {"findings": []}
+            current = run_scan(workspace, allowed_root=workspace)
+            diff = compare_findings(current, previous)
+            self.assertGreaterEqual(diff["summary"]["added"], 1)
+            report = render_markdown_report(current, workspace)
+            self.assertIn("# ClawGarda Report", report)
 
 
 if __name__ == "__main__":

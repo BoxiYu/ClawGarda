@@ -1,0 +1,89 @@
+from __future__ import annotations
+
+from collections import Counter
+from datetime import datetime, UTC
+from pathlib import Path
+import json
+from typing import Any
+
+from .scanner import Finding
+
+
+def _fingerprint(f: Finding) -> str:
+    return f"{f.id}|{f.title}|{f.severity}|{f.evidence}|{f.fix}"
+
+
+def save_baseline(path: Path, findings: list[Finding], workspace: Path) -> None:
+    payload = {
+        "created_at": datetime.now(UTC).isoformat(),
+        "workspace": str(workspace.resolve()),
+        "findings": [f.as_dict() for f in findings],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def load_baseline(path: Path) -> dict[str, Any]:
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError("invalid baseline format")
+    return raw
+
+
+def compare_findings(current: list[Finding], previous_payload: dict[str, Any]) -> dict[str, Any]:
+    prev_raw = previous_payload.get("findings", [])
+    prev_findings = [Finding(**f) for f in prev_raw if isinstance(f, dict)]
+
+    prev_map = {_fingerprint(f): f for f in prev_findings}
+    curr_map = {_fingerprint(f): f for f in current}
+
+    added = [curr_map[k].as_dict() for k in sorted(curr_map.keys() - prev_map.keys())]
+    removed = [prev_map[k].as_dict() for k in sorted(prev_map.keys() - curr_map.keys())]
+
+    current_counter = Counter(f.severity for f in current)
+    previous_counter = Counter(f.severity for f in prev_findings)
+
+    return {
+        "summary": {
+            "current_total": len(current),
+            "previous_total": len(prev_findings),
+            "added": len(added),
+            "removed": len(removed),
+            "current_by_severity": dict(current_counter),
+            "previous_by_severity": dict(previous_counter),
+        },
+        "added": added,
+        "removed": removed,
+    }
+
+
+def render_markdown_report(findings: list[Finding], workspace: Path) -> str:
+    if not findings:
+        return "# ClawGarda Report\n\nNo findings. ✅\n"
+
+    sev_order = ["critical", "high", "medium", "low"]
+    counts = Counter(f.severity for f in findings)
+    lines = [
+        "# ClawGarda Report",
+        "",
+        f"- Workspace: `{workspace.resolve()}`",
+        f"- Total findings: **{len(findings)}**",
+        "- Severity summary: " + ", ".join(
+            f"{s}: {counts.get(s, 0)}" for s in sev_order if counts.get(s, 0)
+        ),
+        "",
+        "## Findings",
+        "",
+    ]
+
+    for idx, f in enumerate(findings, start=1):
+        lines.extend(
+            [
+                f"### {idx}. [{f.severity.upper()}] {f.id} — {f.title}",
+                f"- Evidence: {f.evidence}",
+                f"- Fix: {f.fix}",
+                "",
+            ]
+        )
+
+    return "\n".join(lines)
