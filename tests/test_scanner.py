@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 from clawgarda.cli import _render_table
-from clawgarda.fixer import run_fix_safe
+from clawgarda.fixer import apply_safe_patch, emit_safe_patch, run_fix_safe
 from clawgarda.reporting import compare_findings, render_markdown_report, should_fail_on_added_severity
 from clawgarda.scanner import findings_to_json, findings_to_sarif, run_scan
 
@@ -180,6 +180,18 @@ class ScannerTests(unittest.TestCase):
         self.assertTrue(should_fail_on_added_severity(diff, "high"))
         self.assertTrue(should_fail_on_added_severity(diff, "medium"))
         self.assertFalse(should_fail_on_added_severity(diff, "critical"))
+
+    def test_emit_and_apply_safe_patch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            findings = run_scan(workspace, allowed_root=workspace)
+            patch_path = workspace / ".clawgarda" / "safe-fix.patch"
+            emit_safe_patch(workspace, findings, patch_path)
+            self.assertTrue(patch_path.exists())
+
+            backups = apply_safe_patch(workspace, patch_path, create_backup=True)
+            self.assertTrue((workspace / ".clawgarda" / "policy.json").exists())
+            self.assertIsInstance(backups, list)
 
 
 if __name__ == "__main__":

@@ -90,10 +90,13 @@ It runs tests, compares against baseline, and can fail PRs on new high+ findings
 
 ```bash
 # preview only
-clawgarda fix --safe --dry-run --workspace /Users/ddq/openclaw
+clawgarda fix run --safe --dry-run --workspace /Users/ddq/openclaw
 
-# apply low-risk files (.clawgarda/policy.json and remediation-plan.md)
-clawgarda fix --safe --workspace /Users/ddq/openclaw
+# emit patch preview
+clawgarda fix run --safe --workspace /Users/ddq/openclaw --emit-patch --patch-path /Users/ddq/openclaw/.clawgarda/safe-fix.patch
+
+# apply patch actions (policy-only, with backup)
+clawgarda fix apply --workspace /Users/ddq/openclaw --patch /Users/ddq/openclaw/.clawgarda/safe-fix.patch
 ```
 
 ## Markdown report (v0.3)

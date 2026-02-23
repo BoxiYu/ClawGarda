@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import json
 
-from .fixer import run_fix_safe
+from .fixer import apply_safe_patch, run_fix_safe
 from .reporting import (
     compare_findings,
     load_baseline,
@@ -82,9 +82,19 @@ def _build_parser() -> argparse.ArgumentParser:
     report.add_argument("--output", default="-", help="Output markdown path, '-' for stdout")
 
     fix = subparsers.add_parser("fix", help="Apply safe low-risk fixes")
-    _add_common_scan_args(fix)
-    fix.add_argument("--safe", action="store_true", help="Enable safe fix mode")
-    fix.add_argument("--dry-run", action="store_true", help="Preview only; do not write files")
+    fix_sub = fix.add_subparsers(dest="fix_command", required=True)
+
+    fix_run = fix_sub.add_parser("run", help="Run safe fix workflow")
+    _add_common_scan_args(fix_run)
+    fix_run.add_argument("--safe", action="store_true", help="Enable safe fix mode")
+    fix_run.add_argument("--dry-run", action="store_true", help="Preview only; do not write files")
+    fix_run.add_argument("--emit-patch", action="store_true", help="Emit safe patch preview file")
+    fix_run.add_argument("--patch-path", default=None, help="Patch output path")
+
+    fix_apply = fix_sub.add_parser("apply", help="Apply safe patch outputs (policy only)")
+    fix_apply.add_argument("--workspace", default=".", help="Workspace path")
+    fix_apply.add_argument("--patch", required=True, help="Patch file path emitted by fix run")
+    fix_apply.add_argument("--no-backup", action="store_true", help="Do not create backup before apply")
 
     return parser
 
@@ -151,12 +161,19 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Wrote markdown report: {out}")
         return 1 if findings else 0
 
-    if args.command == "fix":
+    if args.command == "fix" and args.fix_command == "run":
         if not args.safe:
             print("Refusing to run: only --safe mode is implemented.")
             return 2
         findings, workspace = _scan_with_args(args)
-        plan = run_fix_safe(workspace, findings, dry_run=args.dry_run)
+        patch_path = Path(args.patch_path) if args.patch_path else None
+        plan = run_fix_safe(
+            workspace,
+            findings,
+            dry_run=args.dry_run,
+            emit_patch=args.emit_patch,
+            patch_path=patch_path,
+        )
         mode = "DRY-RUN" if args.dry_run else "APPLY"
         print(f"Fix mode: {mode}")
         for action in plan.actions:
@@ -166,6 +183,19 @@ def main(argv: list[str] | None = None) -> int:
             for p in plan.wrote_files:
                 print(f"  - {p}")
         return 1 if findings else 0
+
+    if args.command == "fix" and args.fix_command == "apply":
+        patch = Path(args.patch)
+        if not patch.exists():
+            print(f"Patch not found: {patch}")
+            return 2
+        backups = apply_safe_patch(Path(args.workspace), patch, create_backup=not args.no_backup)
+        print(f"Applied safe patch actions from: {patch}")
+        if backups:
+            print("Backups:")
+            for b in backups:
+                print(f"- {b}")
+        return 0
 
     parser.print_help()
     return 2
