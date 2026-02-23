@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from clawgarda.cli import _render_table
+from clawgarda.deepscan import run_deep_scan
 from clawgarda.fixer import apply_safe_patch, emit_safe_patch, run_fix_safe
 from clawgarda.reporting import compare_findings, render_markdown_report, render_pr_template, should_fail_on_added_severity
 from clawgarda.scanner import findings_to_json, findings_to_sarif, run_scan
@@ -194,6 +195,16 @@ class ScannerTests(unittest.TestCase):
             backups = apply_safe_patch(workspace, patch_path, create_backup=True)
             self.assertTrue((workspace / ".clawgarda" / "policy.json").exists())
             self.assertIsInstance(backups, list)
+
+    def test_deep_scan_detects_log_patterns(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            log = workspace / "openclaw.log"
+            log.write_text("gateway connect failed: pairing required", encoding="utf-8")
+
+            findings = run_deep_scan(workspace)
+            ids = {f.id for f in findings}
+            self.assertIn("CGD-001", ids)
 
 
 if __name__ == "__main__":

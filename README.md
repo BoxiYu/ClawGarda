@@ -42,6 +42,16 @@ SARIF output (for code scanning / CI):
 clawgarda scan --workspace /Users/ddq/openclaw --format sarif > clawgarda.sarif
 ```
 
+Deep scan mode (logs/artifacts/deps):
+
+```bash
+clawgarda deep-scan --workspace /Users/ddq/openclaw
+clawgarda deep-scan --workspace /Users/ddq/openclaw --format json
+
+# Optional RLM-assisted large-context analysis (best effort)
+clawgarda deep-scan --workspace /Users/ddq/openclaw --use-rlm --rlm-model gpt-5-mini
+```
+
 Use external rules file:
 
 ```bash

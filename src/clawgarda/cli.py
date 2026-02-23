@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import json
 
+from .deepscan import findings_to_json as deep_findings_to_json, run_deep_scan
 from .fixer import apply_safe_patch, run_fix_safe
 from .reporting import (
     compare_findings,
@@ -59,6 +60,12 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_common_scan_args(scan)
     scan.add_argument("--json", action="store_true", help="Output findings as JSON (legacy shorthand)")
     scan.add_argument("--format", choices=["table", "json", "sarif"], default="table", help="Output format")
+
+    deep = subparsers.add_parser("deep-scan", help="Run deep scan (logs/artifacts/deps, optional RLM)")
+    deep.add_argument("--workspace", default=".", help="Path to workspace to scan")
+    deep.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
+    deep.add_argument("--use-rlm", action="store_true", help="Enable recursive-llm assisted context analysis")
+    deep.add_argument("--rlm-model", default="gpt-5-mini", help="Model name for RLM analysis")
 
     baseline = subparsers.add_parser("baseline", help="Save or compare scan baselines")
     baseline_sub = baseline.add_subparsers(dest="baseline_command", required=True)
@@ -121,6 +128,18 @@ def main(argv: list[str] | None = None) -> int:
             print(findings_to_json(findings))
         elif output_format == "sarif":
             print(findings_to_sarif(findings))
+        else:
+            print(_render_table(findings))
+        return 1 if findings else 0
+
+    if args.command == "deep-scan":
+        findings = run_deep_scan(
+            workspace=Path(args.workspace),
+            use_rlm=args.use_rlm,
+            rlm_model=args.rlm_model,
+        )
+        if args.format == "json":
+            print(deep_findings_to_json(findings))
         else:
             print(_render_table(findings))
         return 1 if findings else 0
