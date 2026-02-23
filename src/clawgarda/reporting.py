@@ -8,6 +8,13 @@ from typing import Any
 
 from .scanner import Finding
 
+SEVERITY_RANK = {
+    "critical": 4,
+    "high": 3,
+    "medium": 2,
+    "low": 1,
+}
+
 
 def _fingerprint(f: Finding) -> str:
     return f"{f.id}|{f.title}|{f.severity}|{f.confidence}|{f.evidence}|{f.fix}"
@@ -55,6 +62,20 @@ def compare_findings(current: list[Finding], previous_payload: dict[str, Any]) -
         "added": added,
         "removed": removed,
     }
+
+
+def should_fail_on_added_severity(diff: dict[str, Any], min_severity: str | None) -> bool:
+    if not min_severity:
+        return False
+    threshold = SEVERITY_RANK.get(min_severity.lower())
+    if threshold is None:
+        return False
+
+    for item in diff.get("added", []):
+        sev = str(item.get("severity", "")).lower()
+        if SEVERITY_RANK.get(sev, 0) >= threshold:
+            return True
+    return False
 
 
 def render_markdown_report(findings: list[Finding], workspace: Path) -> str:

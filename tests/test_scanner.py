@@ -7,7 +7,7 @@ import unittest
 
 from clawgarda.cli import _render_table
 from clawgarda.fixer import run_fix_safe
-from clawgarda.reporting import compare_findings, render_markdown_report
+from clawgarda.reporting import compare_findings, render_markdown_report, should_fail_on_added_severity
 from clawgarda.scanner import findings_to_json, findings_to_sarif, run_scan
 
 
@@ -169,6 +169,17 @@ class ScannerTests(unittest.TestCase):
             self.assertGreaterEqual(len(plan_apply.wrote_files), 1)
             self.assertTrue((workspace / ".clawgarda" / "policy.json").exists())
             self.assertTrue((workspace / ".clawgarda" / "remediation-plan.md").exists())
+
+    def test_fail_on_added_severity_threshold(self) -> None:
+        diff = {
+            "added": [
+                {"id": "CGA-006", "severity": "high"},
+                {"id": "CGA-004", "severity": "medium"},
+            ]
+        }
+        self.assertTrue(should_fail_on_added_severity(diff, "high"))
+        self.assertTrue(should_fail_on_added_severity(diff, "medium"))
+        self.assertFalse(should_fail_on_added_severity(diff, "critical"))
 
 
 if __name__ == "__main__":

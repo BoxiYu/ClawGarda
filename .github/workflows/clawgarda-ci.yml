@@ -1,0 +1,55 @@
+name: ClawGarda CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ClawGarda
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ./projects/clawgarda
+
+      - name: Run tests
+        run: |
+          python -m unittest discover -s projects/clawgarda/tests -v
+
+      - name: Ensure baseline exists (first run bootstrap)
+        run: |
+          mkdir -p .clawgarda
+          if [ ! -f .clawgarda/baseline.json ]; then
+            clawgarda baseline save \
+              --workspace . \
+              --allowed-root . \
+              --path .clawgarda/baseline.json
+          fi
+
+      - name: Compare against baseline (fail on new high+)
+        run: |
+          clawgarda baseline compare \
+            --workspace . \
+            --allowed-root . \
+            --path .clawgarda/baseline.json \
+            --format table \
+            --fail-on-severity high
+
+      - name: Upload SARIF artifact
+        if: always()
+        run: |
+          clawgarda scan --workspace . --allowed-root . --format sarif > clawgarda.sarif || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clawgarda-sarif
+          path: clawgarda.sarif

@@ -6,7 +6,13 @@ import sys
 import json
 
 from .fixer import run_fix_safe
-from .reporting import compare_findings, load_baseline, render_markdown_report, save_baseline
+from .reporting import (
+    compare_findings,
+    load_baseline,
+    render_markdown_report,
+    save_baseline,
+    should_fail_on_added_severity,
+)
 from .scanner import Finding, findings_to_json, findings_to_sarif, run_scan
 
 
@@ -64,6 +70,12 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_common_scan_args(bcmp)
     bcmp.add_argument("--path", default=".clawgarda/baseline.json", help="Baseline file path")
     bcmp.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
+    bcmp.add_argument(
+        "--fail-on-severity",
+        choices=["critical", "high", "medium", "low"],
+        default=None,
+        help="Fail only when added findings meet/exceed this severity",
+    )
 
     report = subparsers.add_parser("report", help="Generate markdown report")
     _add_common_scan_args(report)
@@ -120,6 +132,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"current={summary['current_total']} previous={summary['previous_total']} added={summary['added']} removed={summary['removed']}")
             print("added IDs:", ", ".join(sorted({f['id'] for f in diff['added']})) or "none")
             print("removed IDs:", ", ".join(sorted({f['id'] for f in diff['removed']})) or "none")
+            if args.fail_on_severity:
+                print(f"fail threshold: {args.fail_on_severity}")
+
+        if args.fail_on_severity:
+            return 1 if should_fail_on_added_severity(diff, args.fail_on_severity) else 0
         return 1 if diff["summary"]["added"] > 0 else 0
 
     if args.command == "report":

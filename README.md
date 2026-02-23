@@ -74,7 +74,17 @@ Compare current state against baseline:
 clawgarda baseline compare --workspace /Users/ddq/openclaw --path .clawgarda/baseline.json
 # JSON diff
 clawgarda baseline compare --workspace /Users/ddq/openclaw --path .clawgarda/baseline.json --format json
+# CI gate: fail only when NEW findings are high+
+clawgarda baseline compare --workspace /Users/ddq/openclaw --path .clawgarda/baseline.json --fail-on-severity high
 ```
+
+## GitHub Actions CI gate (v0.7)
+
+A sample workflow is included at:
+
+`projects/clawgarda/.github/workflows/clawgarda-ci.yml`
+
+It runs tests, compares against baseline, and can fail PRs on new high+ findings.
 
 ## Safe fix scaffold (v0.6)
 
