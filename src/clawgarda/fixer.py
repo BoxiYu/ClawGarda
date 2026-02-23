@@ -101,7 +101,7 @@ def apply_safe_patch(workspace: Path, patch_path: Path, create_backup: bool = Tr
     backup_files: list[Path] = []
 
     if create_backup and policy_path.exists():
-        backup = workspace / ".clawgarda" / f"policy.json.bak.{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        backup = workspace / ".clawgarda" / f"policy.json.bak.{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
         backup.write_text(policy_path.read_text(encoding="utf-8"), encoding="utf-8")
         backup_files.append(backup)
 

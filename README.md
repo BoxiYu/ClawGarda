@@ -107,6 +107,9 @@ clawgarda report --workspace /Users/ddq/openclaw
 
 # write to file
 clawgarda report --workspace /Users/ddq/openclaw --output reports/clawgarda.md
+
+# PR template markdown
+clawgarda report --workspace /Users/ddq/openclaw --pr-template --output reports/PR_BODY.md
 ```
 
 Exit code is `0` when no findings, `1` when findings exist.

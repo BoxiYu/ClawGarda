@@ -7,7 +7,7 @@ import unittest
 
 from clawgarda.cli import _render_table
 from clawgarda.fixer import apply_safe_patch, emit_safe_patch, run_fix_safe
-from clawgarda.reporting import compare_findings, render_markdown_report, should_fail_on_added_severity
+from clawgarda.reporting import compare_findings, render_markdown_report, render_pr_template, should_fail_on_added_severity
 from clawgarda.scanner import findings_to_json, findings_to_sarif, run_scan
 
 
@@ -128,6 +128,8 @@ class ScannerTests(unittest.TestCase):
             self.assertGreaterEqual(diff["summary"]["added"], 1)
             report = render_markdown_report(current, workspace)
             self.assertIn("# ClawGarda Report", report)
+            pr = render_pr_template(current, workspace)
+            self.assertIn("## Summary", pr)
 
     def test_policy_ignore_glob_suppresses_secret_finding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

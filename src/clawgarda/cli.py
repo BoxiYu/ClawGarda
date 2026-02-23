@@ -10,6 +10,7 @@ from .reporting import (
     compare_findings,
     load_baseline,
     render_markdown_report,
+    render_pr_template,
     save_baseline,
     should_fail_on_added_severity,
 )
@@ -80,6 +81,7 @@ def _build_parser() -> argparse.ArgumentParser:
     report = subparsers.add_parser("report", help="Generate markdown report")
     _add_common_scan_args(report)
     report.add_argument("--output", default="-", help="Output markdown path, '-' for stdout")
+    report.add_argument("--pr-template", action="store_true", help="Render PR template markdown")
 
     fix = subparsers.add_parser("fix", help="Apply safe low-risk fixes")
     fix_sub = fix.add_subparsers(dest="fix_command", required=True)
@@ -151,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "report":
         findings, workspace = _scan_with_args(args)
-        md = render_markdown_report(findings, workspace)
+        md = render_pr_template(findings, workspace) if args.pr_template else render_markdown_report(findings, workspace)
         if args.output == "-":
             print(md)
         else:
