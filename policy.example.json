@@ -1,0 +1,13 @@
+{
+  "ignore_globs": [
+    "projects/adk-python/contributing/samples/**",
+    "projects/nanoclaw/.claude/skills/**"
+  ],
+  "exceptions": {
+    "CGA-006": [
+      "sample",
+      "example",
+      "docs/SPEC.md"
+    ]
+  }
+}

@@ -64,6 +64,23 @@ class ScannerTests(unittest.TestCase):
             report = render_markdown_report(current, workspace)
             self.assertIn("# ClawGarda Report", report)
 
+    def test_policy_ignore_glob_suppresses_secret_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            noisy = workspace / "docs" / "sample.md"
+            noisy.parent.mkdir(parents=True, exist_ok=True)
+            noisy.write_text('token = "sk-example-1234567890abcdef"', encoding="utf-8")
+
+            policy = workspace / "policy.json"
+            policy.write_text(
+                json.dumps({"ignore_globs": ["docs/**"], "exceptions": {}}),
+                encoding="utf-8",
+            )
+
+            findings = run_scan(workspace, allowed_root=workspace, policy_path=policy)
+            ids = {f.id for f in findings}
+            self.assertNotIn("CGA-006", ids)
+
 
 if __name__ == "__main__":
     unittest.main()

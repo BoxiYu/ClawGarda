@@ -40,6 +40,7 @@ def _add_common_scan_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--workspace", default=".", help="Path to workspace to scan")
     p.add_argument("--allowed-root", default="/Users/ddq/openclaw", help="Expected allowed workspace root")
     p.add_argument("--rules", default=None, help="Path to external JSON rules file")
+    p.add_argument("--policy", default=None, help="Path to policy JSON (ignore globs / exceptions)")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -74,7 +75,8 @@ def _scan_with_args(args: argparse.Namespace) -> tuple[list[Finding], Path]:
     workspace = Path(args.workspace)
     allowed_root = Path(args.allowed_root)
     rules_path = Path(args.rules) if args.rules else None
-    findings = run_scan(workspace, allowed_root, rules_path=rules_path)
+    policy_path = Path(args.policy) if args.policy else None
+    findings = run_scan(workspace, allowed_root, rules_path=rules_path, policy_path=policy_path)
     return findings, workspace
 
 

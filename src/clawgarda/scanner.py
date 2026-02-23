@@ -8,6 +8,8 @@ import re
 import socket
 from typing import Any
 
+from .policy import Policy, finding_is_excepted, load_policy, path_matches_any
+
 MAX_FILES = 200
 MAX_FILE_SIZE_BYTES = 1_000_000
 DEFAULT_ALLOWED_WORKSPACE = Path("/Users/ddq/openclaw")
@@ -89,11 +91,14 @@ def _make_finding(rules: dict[str, Rule], rid: str, evidence: str, severity: str
 
 
 def _find_gateway_config(workspace: Path) -> Path | None:
+    home = Path.home()
     candidates = [
         workspace / "gateway.json",
         workspace / "config" / "gateway.json",
         workspace / "openclaw.json",
         workspace / "config.json",
+        home / ".openclaw" / "openclaw.json",
+        home / "openclaw" / "state" / "openclaw.json",
     ]
     for candidate in candidates:
         if candidate.is_file():
@@ -127,10 +132,10 @@ def _is_loopback(bind_value: str | None) -> bool:
     if not bind_value:
         return False
     value = bind_value.strip().lower()
-    return value in {"127.0.0.1", "localhost", "::1"}
+    return value in {"127.0.0.1", "localhost", "::1", "loopback"}
 
 
-def _scan_text_files_for_secrets(workspace: Path, rules: dict[str, Rule]) -> list[Finding]:
+def _scan_text_files_for_secrets(workspace: Path, rules: dict[str, Rule], policy: Policy) -> list[Finding]:
     findings: list[Finding] = []
     scanned = 0
 
@@ -138,6 +143,10 @@ def _scan_text_files_for_secrets(workspace: Path, rules: dict[str, Rule]) -> lis
         if scanned >= MAX_FILES:
             break
         if not path.is_file():
+            continue
+        if path.is_symlink():
+            continue
+        if path_matches_any(path, policy.ignore_globs, workspace):
             continue
         if path.suffix.lower() not in {".md", ".json"}:
             continue
@@ -273,10 +282,16 @@ def _check_local_port_listening(bind_value: str | None, port: int | None, rules:
     )
 
 
-def run_scan(workspace: Path, allowed_root: Path = DEFAULT_ALLOWED_WORKSPACE, rules_path: Path | None = None) -> list[Finding]:
+def run_scan(
+    workspace: Path,
+    allowed_root: Path = DEFAULT_ALLOWED_WORKSPACE,
+    rules_path: Path | None = None,
+    policy_path: Path | None = None,
+) -> list[Finding]:
     workspace = workspace.resolve()
     findings: list[Finding] = []
     rules = load_rules(rules_path)
+    policy = load_policy(policy_path)
 
     config_path = _find_gateway_config(workspace)
     config_data: dict[str, Any] = {}
@@ -302,8 +317,9 @@ def run_scan(workspace: Path, allowed_root: Path = DEFAULT_ALLOWED_WORKSPACE, ru
         if check:
             findings.append(check)
 
-    findings.extend(_scan_text_files_for_secrets(workspace, rules))
+    findings.extend(_scan_text_files_for_secrets(workspace, rules, policy))
 
+    findings = [f for f in findings if not finding_is_excepted(f.id, f.evidence, policy.exceptions)]
     findings.sort(key=lambda f: SEVERITY_SCORE.get(f.severity, 0), reverse=True)
     return findings
 

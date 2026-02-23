@@ -48,6 +48,12 @@ Use external rules file:
 clawgarda scan --workspace /Users/ddq/openclaw --rules ./src/clawgarda/rules/default.json
 ```
 
+Use policy file (ignore noisy paths / exceptions):
+
+```bash
+clawgarda scan --workspace /Users/ddq/openclaw --policy ./policy.example.json
+```
+
 Override allowed workspace root:
 
 ```bash
