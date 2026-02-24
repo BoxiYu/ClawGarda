@@ -9,6 +9,7 @@ from .copilot import load_findings_json, render_plan_markdown
 from .deepscan import findings_to_json as deep_findings_to_json, run_deep_scan
 from .fixer import apply_safe_patch, run_fix_safe
 from .sast import run_sast_scan
+from .sast_reporting import render_sast_summary_markdown, summarize_sast_findings
 from .reporting import (
     compare_findings,
     load_baseline,
@@ -85,6 +86,12 @@ def _build_parser() -> argparse.ArgumentParser:
     scmp.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
     scmp.add_argument("--fail-on-severity", choices=["critical", "high", "medium", "low"], default=None, help="Fail only when added findings meet/exceed this severity")
     scmp.add_argument("--exclude-glob", action="append", default=None, help="Exclude path glob (repeatable)")
+
+    ssum = sast_sub.add_parser("summary", help="Summarize SAST findings and hotspots")
+    ssum.add_argument("--workspace", default=".", help="Workspace path")
+    ssum.add_argument("--exclude-glob", action="append", default=None, help="Exclude path glob (repeatable)")
+    ssum.add_argument("--format", choices=["markdown", "json"], default="markdown", help="Output format")
+    ssum.add_argument("--output", default="-", help="Output path, '-' for stdout")
 
     deep = subparsers.add_parser("deep-scan", help="Run deep scan (logs/artifacts/deps, optional RLM)")
     deep.add_argument("--workspace", default=".", help="Path to workspace to scan")
@@ -196,6 +203,23 @@ def main(argv: list[str] | None = None) -> int:
             print(findings_to_json(findings))
         else:
             print(_render_table(findings))
+        return 1 if findings else 0
+
+    if args.command == "sast" and args.sast_command == "summary":
+        findings = run_sast_scan(Path(args.workspace), exclude_globs=args.exclude_glob)
+        summary = summarize_sast_findings(findings)
+        if args.format == "json":
+            content = json.dumps(summary, indent=2)
+        else:
+            content = render_sast_summary_markdown(summary)
+
+        if args.output == "-":
+            print(content)
+        else:
+            out = Path(args.output)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(content, encoding="utf-8")
+            print(f"Wrote SAST summary: {out}")
         return 1 if findings else 0
 
     if args.command == "sast" and args.sast_command == "baseline" and args.sast_baseline_command == "save":

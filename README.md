@@ -45,6 +45,13 @@ clawgarda sast baseline save --workspace /Users/ddq/openclaw --path /Users/ddq/o
 clawgarda sast baseline compare --workspace /Users/ddq/openclaw --path /Users/ddq/openclaw/.clawgarda/sast-baseline.json --fail-on-severity high
 ```
 
+SAST summary/hotspots (Phase 1.2):
+
+```bash
+clawgarda sast summary --workspace /Users/ddq/openclaw --output reports/SAST_SUMMARY.md
+clawgarda sast summary --workspace /Users/ddq/openclaw --format json
+```
+
 JSON output:
 
 ```bash
