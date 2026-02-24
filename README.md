@@ -176,6 +176,13 @@ clawgarda report --workspace /Users/ddq/openclaw --output reports/clawgarda.md
 clawgarda report --workspace /Users/ddq/openclaw --pr-template --output reports/PR_BODY.md
 ```
 
+## Hygiene checks (v1.5)
+
+```bash
+# scan tracked files for potential secrets before commit/push
+clawgarda hygiene secrets --workspace /Users/ddq/openclaw/projects/clawgarda
+```
+
 ## LLM auth (v1.4)
 
 ```bash
