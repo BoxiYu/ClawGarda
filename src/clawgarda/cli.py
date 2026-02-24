@@ -8,6 +8,7 @@ import json
 from .copilot import load_findings_json, render_plan_markdown
 from .deepscan import findings_to_json as deep_findings_to_json, run_deep_scan
 from .fixer import apply_safe_patch, run_fix_safe
+from .sast import run_sast_scan
 from .reporting import (
     compare_findings,
     load_baseline,
@@ -61,6 +62,13 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_common_scan_args(scan)
     scan.add_argument("--json", action="store_true", help="Output findings as JSON (legacy shorthand)")
     scan.add_argument("--format", choices=["table", "json", "sarif"], default="table", help="Output format")
+
+    sast = subparsers.add_parser("sast", help="Run static code security scan")
+    sast_sub = sast.add_subparsers(dest="sast_command", required=True)
+
+    sast_scan = sast_sub.add_parser("scan", help="Run SAST rules")
+    sast_scan.add_argument("--workspace", default=".", help="Workspace path")
+    sast_scan.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
 
     deep = subparsers.add_parser("deep-scan", help="Run deep scan (logs/artifacts/deps, optional RLM)")
     deep.add_argument("--workspace", default=".", help="Path to workspace to scan")
@@ -162,6 +170,14 @@ def main(argv: list[str] | None = None) -> int:
             print(findings_to_json(findings))
         elif output_format == "sarif":
             print(findings_to_sarif(findings))
+        else:
+            print(_render_table(findings))
+        return 1 if findings else 0
+
+    if args.command == "sast" and args.sast_command == "scan":
+        findings = run_sast_scan(Path(args.workspace))
+        if args.format == "json":
+            print(findings_to_json(findings))
         else:
             print(_render_table(findings))
         return 1 if findings else 0

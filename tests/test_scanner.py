@@ -10,6 +10,7 @@ from clawgarda.copilot import render_plan_markdown
 from clawgarda.deepscan import run_deep_scan
 from clawgarda.fixer import apply_safe_patch, emit_safe_patch, run_fix_safe
 from clawgarda.reporting import compare_findings, render_markdown_report, render_pr_template, should_fail_on_added_severity
+from clawgarda.sast import run_sast_scan
 from clawgarda.scanner import findings_to_json, findings_to_sarif, run_scan
 
 
@@ -235,6 +236,15 @@ class ScannerTests(unittest.TestCase):
             plan = render_plan_markdown(findings, workspace)
             self.assertIn("# ClawGarda Copilot Plan", plan)
             self.assertIn("Prioritized remediation roadmap", plan)
+
+    def test_sast_detects_subprocess_shell_true(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            bad = workspace / "app.py"
+            bad.write_text('import subprocess\nsubprocess.run("ls", shell=True)\n', encoding="utf-8")
+            findings = run_sast_scan(workspace)
+            ids = {f.id for f in findings}
+            self.assertIn("CGS-001", ids)
 
 
 if __name__ == "__main__":

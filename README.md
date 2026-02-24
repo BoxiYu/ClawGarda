@@ -28,6 +28,13 @@ Default table output:
 clawgarda scan --workspace /Users/ddq/openclaw
 ```
 
+SAST scan (Phase 1):
+
+```bash
+clawgarda sast scan --workspace /Users/ddq/openclaw
+clawgarda sast scan --workspace /Users/ddq/openclaw --format json
+```
+
 JSON output:
 
 ```bash
