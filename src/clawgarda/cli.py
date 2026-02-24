@@ -10,6 +10,7 @@ from .dast import run_dast_smoke
 from .dast_reporting import render_dast_summary_markdown, summarize_dast_findings
 from .deepscan import findings_to_json as deep_findings_to_json, run_deep_scan
 from .fixer import apply_safe_patch, run_fix_safe
+from .llm_auth import codex_login_device_auth, codex_login_status
 from .sast import run_sast_scan
 from .sast_reporting import render_sast_summary_markdown, summarize_sast_findings
 from .reporting import (
@@ -200,6 +201,11 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_common_scan_args(cplan)
     cplan.add_argument("--from-json", default=None, help="Use existing findings JSON instead of running scan")
     cplan.add_argument("--output", default="-", help="Output markdown path, '-' for stdout")
+
+    llm = subparsers.add_parser("llm", help="LLM auth helpers")
+    llm_sub = llm.add_subparsers(dest="llm_command", required=True)
+    llm_sub.add_parser("status", help="Show ChatGPT/Codex OAuth login status")
+    llm_sub.add_parser("auth", help="Start device auth via codex login")
 
     return parser
 
@@ -470,6 +476,17 @@ def main(argv: list[str] | None = None) -> int:
             out.write_text(md, encoding="utf-8")
             print(f"Wrote copilot plan: {out}")
         return 1 if findings else 0
+
+    if args.command == "llm" and args.llm_command == "status":
+        st = codex_login_status()
+        print(f"provider={st.provider}")
+        print(f"authenticated={str(st.authenticated).lower()}")
+        print(st.detail)
+        return 0 if st.authenticated else 1
+
+    if args.command == "llm" and args.llm_command == "auth":
+        rc = codex_login_device_auth()
+        return rc
 
     parser.print_help()
     return 2

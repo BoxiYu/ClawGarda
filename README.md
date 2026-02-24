@@ -176,6 +176,16 @@ clawgarda report --workspace /Users/ddq/openclaw --output reports/clawgarda.md
 clawgarda report --workspace /Users/ddq/openclaw --pr-template --output reports/PR_BODY.md
 ```
 
+## LLM auth (v1.4)
+
+```bash
+# check ChatGPT/Codex OAuth login status
+clawgarda llm status
+
+# start device auth flow
+clawgarda llm auth
+```
+
 ## Copilot plan (v1.1)
 
 ```bash
