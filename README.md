@@ -33,6 +33,16 @@ SAST scan (Phase 1):
 ```bash
 clawgarda sast scan --workspace /Users/ddq/openclaw
 clawgarda sast scan --workspace /Users/ddq/openclaw --format json
+
+# reduce third-party noise
+clawgarda sast scan --workspace /Users/ddq/openclaw --exclude-glob "projects/**"
+```
+
+SAST baseline workflow (Phase 1.1):
+
+```bash
+clawgarda sast baseline save --workspace /Users/ddq/openclaw --path /Users/ddq/openclaw/.clawgarda/sast-baseline.json
+clawgarda sast baseline compare --workspace /Users/ddq/openclaw --path /Users/ddq/openclaw/.clawgarda/sast-baseline.json --fail-on-severity high
 ```
 
 JSON output:

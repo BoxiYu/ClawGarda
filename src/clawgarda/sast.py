@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import fnmatch
 import re
 from typing import Iterable
 
@@ -84,13 +85,29 @@ RULES: list[tuple[str, str, str, re.Pattern[str], str]] = [
 
 EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".sh"}
 EXCLUDE = {".git", "node_modules", "dist", "build", "__pycache__", ".venv", "venv"}
+DEFAULT_EXCLUDE_GLOBS = [
+    "projects/adk-python/**",
+    "projects/nanoclaw/**",
+    "projects/recursive-llm/**",
+    "state/workspace/**",
+]
 
 
-def _iter_files(workspace: Path) -> Iterable[Path]:
+def _excluded_by_glob(path: Path, workspace: Path, exclude_globs: list[str]) -> bool:
+    try:
+        rel = str(path.relative_to(workspace)).replace("\\", "/")
+    except Exception:
+        rel = str(path).replace("\\", "/")
+    return any(fnmatch.fnmatch(rel, pat) for pat in exclude_globs)
+
+
+def _iter_files(workspace: Path, exclude_globs: list[str]) -> Iterable[Path]:
     count = 0
     for p in workspace.rglob("*"):
         if count >= MAX_FILES:
             break
+        if _excluded_by_glob(p, workspace, exclude_globs):
+            continue
         if any(part in EXCLUDE for part in p.parts):
             continue
         if not p.is_file() or p.is_symlink():
@@ -106,11 +123,14 @@ def _iter_files(workspace: Path) -> Iterable[Path]:
         yield p
 
 
-def run_sast_scan(workspace: Path) -> list[Finding]:
+def run_sast_scan(workspace: Path, exclude_globs: list[str] | None = None) -> list[Finding]:
     workspace = workspace.resolve()
     findings: list[Finding] = []
+    globs = list(DEFAULT_EXCLUDE_GLOBS)
+    if exclude_globs:
+        globs.extend(exclude_globs)
 
-    for path in _iter_files(workspace):
+    for path in _iter_files(workspace, globs):
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:

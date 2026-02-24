@@ -246,6 +246,16 @@ class ScannerTests(unittest.TestCase):
             ids = {f.id for f in findings}
             self.assertIn("CGS-001", ids)
 
+    def test_sast_respects_exclude_glob(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            bad = workspace / "src" / "app.py"
+            bad.parent.mkdir(parents=True, exist_ok=True)
+            bad.write_text('import subprocess\nsubprocess.run("ls", shell=True)\n', encoding="utf-8")
+            findings = run_sast_scan(workspace, exclude_globs=["src/**"])
+            ids = {f.id for f in findings}
+            self.assertNotIn("CGS-001", ids)
+
 
 if __name__ == "__main__":
     unittest.main()

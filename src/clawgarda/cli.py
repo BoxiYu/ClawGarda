@@ -69,6 +69,22 @@ def _build_parser() -> argparse.ArgumentParser:
     sast_scan = sast_sub.add_parser("scan", help="Run SAST rules")
     sast_scan.add_argument("--workspace", default=".", help="Workspace path")
     sast_scan.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
+    sast_scan.add_argument("--exclude-glob", action="append", default=None, help="Exclude path glob (repeatable)")
+
+    sast_base = sast_sub.add_parser("baseline", help="Save or compare SAST baseline")
+    sast_base_sub = sast_base.add_subparsers(dest="sast_baseline_command", required=True)
+
+    ssave = sast_base_sub.add_parser("save", help="Save SAST baseline")
+    ssave.add_argument("--workspace", default=".", help="Workspace path")
+    ssave.add_argument("--path", default=".clawgarda/sast-baseline.json", help="Baseline file path")
+    ssave.add_argument("--exclude-glob", action="append", default=None, help="Exclude path glob (repeatable)")
+
+    scmp = sast_base_sub.add_parser("compare", help="Compare SAST against baseline")
+    scmp.add_argument("--workspace", default=".", help="Workspace path")
+    scmp.add_argument("--path", default=".clawgarda/sast-baseline.json", help="Baseline file path")
+    scmp.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
+    scmp.add_argument("--fail-on-severity", choices=["critical", "high", "medium", "low"], default=None, help="Fail only when added findings meet/exceed this severity")
+    scmp.add_argument("--exclude-glob", action="append", default=None, help="Exclude path glob (repeatable)")
 
     deep = subparsers.add_parser("deep-scan", help="Run deep scan (logs/artifacts/deps, optional RLM)")
     deep.add_argument("--workspace", default=".", help="Path to workspace to scan")
@@ -175,12 +191,39 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if findings else 0
 
     if args.command == "sast" and args.sast_command == "scan":
-        findings = run_sast_scan(Path(args.workspace))
+        findings = run_sast_scan(Path(args.workspace), exclude_globs=args.exclude_glob)
         if args.format == "json":
             print(findings_to_json(findings))
         else:
             print(_render_table(findings))
         return 1 if findings else 0
+
+    if args.command == "sast" and args.sast_command == "baseline" and args.sast_baseline_command == "save":
+        workspace = Path(args.workspace)
+        findings = run_sast_scan(workspace, exclude_globs=args.exclude_glob)
+        out = Path(args.path)
+        save_baseline(out, findings, workspace)
+        print(f"Saved SAST baseline with {len(findings)} findings: {out}")
+        return 0
+
+    if args.command == "sast" and args.sast_command == "baseline" and args.sast_baseline_command == "compare":
+        workspace = Path(args.workspace)
+        findings = run_sast_scan(workspace, exclude_globs=args.exclude_glob)
+        payload = load_baseline(Path(args.path))
+        diff = compare_findings(findings, payload)
+        if args.format == "json":
+            print(json.dumps(diff, indent=2))
+        else:
+            summary = diff["summary"]
+            print("SAST baseline comparison")
+            print(f"current={summary['current_total']} previous={summary['previous_total']} added={summary['added']} removed={summary['removed']}")
+            print("added IDs:", ", ".join(sorted({f['id'] for f in diff['added']})) or "none")
+            print("removed IDs:", ", ".join(sorted({f['id'] for f in diff['removed']})) or "none")
+            if args.fail_on_severity:
+                print(f"fail threshold: {args.fail_on_severity}")
+        if args.fail_on_severity:
+            return 1 if should_fail_on_added_severity(diff, args.fail_on_severity) else 0
+        return 1 if diff["summary"]["added"] > 0 else 0
 
     if args.command == "deep-scan":
         findings = run_deep_scan(
