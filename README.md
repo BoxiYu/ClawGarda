@@ -176,6 +176,11 @@ clawgarda report --workspace /Users/ddq/openclaw --output reports/clawgarda.md
 clawgarda report --workspace /Users/ddq/openclaw --pr-template --output reports/PR_BODY.md
 ```
 
+## Planning docs
+
+- `docs/PRODUCT_REQUIREMENTS.md`
+- `docs/SECURITY_REQUIREMENTS.md`
+
 ## Hygiene checks (v1.5)
 
 ```bash
