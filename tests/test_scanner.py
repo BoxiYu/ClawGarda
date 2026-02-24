@@ -7,6 +7,7 @@ import unittest
 
 from clawgarda.cli import _render_table
 from clawgarda.copilot import render_plan_markdown
+from clawgarda.dast import run_dast_smoke
 from clawgarda.deepscan import run_deep_scan
 from clawgarda.fixer import apply_safe_patch, emit_safe_patch, run_fix_safe
 from clawgarda.reporting import compare_findings, render_markdown_report, render_pr_template, should_fail_on_added_severity
@@ -266,6 +267,11 @@ class ScannerTests(unittest.TestCase):
             summary = summarize_sast_findings(findings)
             self.assertGreaterEqual(summary["total"], 1)
             self.assertTrue(len(summary["hotspots"]) >= 1)
+
+    def test_dast_unreachable_target(self) -> None:
+        findings = run_dast_smoke("http://127.0.0.1:9")
+        ids = {f.id for f in findings}
+        self.assertIn("CGDAS-001", ids)
 
 
 if __name__ == "__main__":

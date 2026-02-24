@@ -6,6 +6,7 @@ import sys
 import json
 
 from .copilot import load_findings_json, render_plan_markdown
+from .dast import run_dast_smoke
 from .deepscan import findings_to_json as deep_findings_to_json, run_deep_scan
 from .fixer import apply_safe_patch, run_fix_safe
 from .sast import run_sast_scan
@@ -92,6 +93,26 @@ def _build_parser() -> argparse.ArgumentParser:
     ssum.add_argument("--exclude-glob", action="append", default=None, help="Exclude path glob (repeatable)")
     ssum.add_argument("--format", choices=["markdown", "json"], default="markdown", help="Output format")
     ssum.add_argument("--output", default="-", help="Output path, '-' for stdout")
+
+    dast = subparsers.add_parser("dast", help="Run dynamic smoke checks")
+    dast_sub = dast.add_subparsers(dest="dast_command", required=True)
+
+    dsmoke = dast_sub.add_parser("smoke", help="Run basic DAST smoke checks against a target URL")
+    dsmoke.add_argument("--target", required=True, help="Target base URL, e.g. http://127.0.0.1:18789")
+    dsmoke.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
+
+    dbase = dast_sub.add_parser("baseline", help="Save or compare DAST smoke baseline")
+    dbase_sub = dbase.add_subparsers(dest="dast_baseline_command", required=True)
+
+    dsave = dbase_sub.add_parser("save", help="Save DAST baseline")
+    dsave.add_argument("--target", required=True, help="Target base URL")
+    dsave.add_argument("--path", default=".clawgarda/dast-baseline.json", help="Baseline file path")
+
+    dcmp = dbase_sub.add_parser("compare", help="Compare DAST against baseline")
+    dcmp.add_argument("--target", required=True, help="Target base URL")
+    dcmp.add_argument("--path", default=".clawgarda/dast-baseline.json", help="Baseline file path")
+    dcmp.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
+    dcmp.add_argument("--fail-on-severity", choices=["critical", "high", "medium", "low"], default=None, help="Fail only when added findings meet/exceed this severity")
 
     deep = subparsers.add_parser("deep-scan", help="Run deep scan (logs/artifacts/deps, optional RLM)")
     deep.add_argument("--workspace", default=".", help="Path to workspace to scan")
@@ -204,6 +225,39 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(_render_table(findings))
         return 1 if findings else 0
+
+    if args.command == "dast" and args.dast_command == "smoke":
+        findings = run_dast_smoke(args.target)
+        if args.format == "json":
+            print(findings_to_json(findings))
+        else:
+            print(_render_table(findings))
+        return 1 if findings else 0
+
+    if args.command == "dast" and args.dast_command == "baseline" and args.dast_baseline_command == "save":
+        findings = run_dast_smoke(args.target)
+        out = Path(args.path)
+        save_baseline(out, findings, Path("."))
+        print(f"Saved DAST baseline with {len(findings)} findings: {out}")
+        return 0
+
+    if args.command == "dast" and args.dast_command == "baseline" and args.dast_baseline_command == "compare":
+        findings = run_dast_smoke(args.target)
+        payload = load_baseline(Path(args.path))
+        diff = compare_findings(findings, payload)
+        if args.format == "json":
+            print(json.dumps(diff, indent=2))
+        else:
+            summary = diff["summary"]
+            print("DAST baseline comparison")
+            print(f"current={summary['current_total']} previous={summary['previous_total']} added={summary['added']} removed={summary['removed']}")
+            print("added IDs:", ", ".join(sorted({f['id'] for f in diff['added']})) or "none")
+            print("removed IDs:", ", ".join(sorted({f['id'] for f in diff['removed']})) or "none")
+            if args.fail_on_severity:
+                print(f"fail threshold: {args.fail_on_severity}")
+        if args.fail_on_severity:
+            return 1 if should_fail_on_added_severity(diff, args.fail_on_severity) else 0
+        return 1 if diff["summary"]["added"] > 0 else 0
 
     if args.command == "sast" and args.sast_command == "summary":
         findings = run_sast_scan(Path(args.workspace), exclude_globs=args.exclude_glob)

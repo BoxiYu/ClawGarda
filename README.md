@@ -89,6 +89,17 @@ clawgarda deep-baseline save --workspace /Users/ddq/openclaw --path /Users/ddq/o
 clawgarda deep-baseline compare --workspace /Users/ddq/openclaw --path /Users/ddq/openclaw/.clawgarda/deep-baseline.json --fail-on-severity high
 ```
 
+DAST smoke workflow (Phase 2-lite):
+
+```bash
+# one-shot dynamic smoke
+clawgarda dast smoke --target http://127.0.0.1:18789
+
+# baseline compare and gate on new high+
+clawgarda dast baseline save --target http://127.0.0.1:18789 --path /Users/ddq/openclaw/.clawgarda/dast-baseline.json
+clawgarda dast baseline compare --target http://127.0.0.1:18789 --path /Users/ddq/openclaw/.clawgarda/dast-baseline.json --fail-on-severity high
+```
+
 Use external rules file:
 
 ```bash
