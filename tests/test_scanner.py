@@ -8,6 +8,7 @@ import unittest
 from clawgarda.cli import _render_table
 from clawgarda.copilot import render_plan_markdown
 from clawgarda.dast import run_dast_smoke
+from clawgarda.dast_reporting import summarize_dast_findings
 from clawgarda.deepscan import run_deep_scan
 from clawgarda.fixer import apply_safe_patch, emit_safe_patch, run_fix_safe
 from clawgarda.reporting import compare_findings, render_markdown_report, render_pr_template, should_fail_on_added_severity
@@ -272,6 +273,12 @@ class ScannerTests(unittest.TestCase):
         findings = run_dast_smoke("http://127.0.0.1:9")
         ids = {f.id for f in findings}
         self.assertIn("CGDAS-001", ids)
+
+    def test_dast_summary_shape(self) -> None:
+        findings = run_dast_smoke("http://127.0.0.1:9")
+        summary = summarize_dast_findings(findings)
+        self.assertIn("total", summary)
+        self.assertIn("by_rule", summary)
 
 
 if __name__ == "__main__":

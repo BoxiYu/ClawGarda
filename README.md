@@ -95,6 +95,12 @@ DAST smoke workflow (Phase 2-lite):
 # one-shot dynamic smoke
 clawgarda dast smoke --target http://127.0.0.1:18789
 
+# custom probe paths
+clawgarda dast smoke --target http://127.0.0.1:18789 --path /admin --path /debug
+
+# summary report
+clawgarda dast summary --target http://127.0.0.1:18789 --output reports/DAST_SUMMARY.md
+
 # baseline compare and gate on new high+
 clawgarda dast baseline save --target http://127.0.0.1:18789 --path /Users/ddq/openclaw/.clawgarda/dast-baseline.json
 clawgarda dast baseline compare --target http://127.0.0.1:18789 --path /Users/ddq/openclaw/.clawgarda/dast-baseline.json --fail-on-severity high

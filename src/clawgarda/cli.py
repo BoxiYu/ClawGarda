@@ -7,6 +7,7 @@ import json
 
 from .copilot import load_findings_json, render_plan_markdown
 from .dast import run_dast_smoke
+from .dast_reporting import render_dast_summary_markdown, summarize_dast_findings
 from .deepscan import findings_to_json as deep_findings_to_json, run_deep_scan
 from .fixer import apply_safe_patch, run_fix_safe
 from .sast import run_sast_scan
@@ -100,6 +101,13 @@ def _build_parser() -> argparse.ArgumentParser:
     dsmoke = dast_sub.add_parser("smoke", help="Run basic DAST smoke checks against a target URL")
     dsmoke.add_argument("--target", required=True, help="Target base URL, e.g. http://127.0.0.1:18789")
     dsmoke.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
+    dsmoke.add_argument("--path", action="append", default=None, help="Extra path to probe (repeatable)")
+
+    dsum = dast_sub.add_parser("summary", help="Summarize DAST findings")
+    dsum.add_argument("--target", required=True, help="Target base URL")
+    dsum.add_argument("--path", action="append", default=None, help="Extra path to probe (repeatable)")
+    dsum.add_argument("--format", choices=["markdown", "json"], default="markdown", help="Output format")
+    dsum.add_argument("--output", default="-", help="Output path, '-' for stdout")
 
     dbase = dast_sub.add_parser("baseline", help="Save or compare DAST smoke baseline")
     dbase_sub = dbase.add_subparsers(dest="dast_baseline_command", required=True)
@@ -107,10 +115,12 @@ def _build_parser() -> argparse.ArgumentParser:
     dsave = dbase_sub.add_parser("save", help="Save DAST baseline")
     dsave.add_argument("--target", required=True, help="Target base URL")
     dsave.add_argument("--path", default=".clawgarda/dast-baseline.json", help="Baseline file path")
+    dsave.add_argument("--probe-path", action="append", default=None, help="Extra path to probe (repeatable)")
 
     dcmp = dbase_sub.add_parser("compare", help="Compare DAST against baseline")
     dcmp.add_argument("--target", required=True, help="Target base URL")
     dcmp.add_argument("--path", default=".clawgarda/dast-baseline.json", help="Baseline file path")
+    dcmp.add_argument("--probe-path", action="append", default=None, help="Extra path to probe (repeatable)")
     dcmp.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
     dcmp.add_argument("--fail-on-severity", choices=["critical", "high", "medium", "low"], default=None, help="Fail only when added findings meet/exceed this severity")
 
@@ -227,22 +237,38 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if findings else 0
 
     if args.command == "dast" and args.dast_command == "smoke":
-        findings = run_dast_smoke(args.target)
+        findings = run_dast_smoke(args.target, paths=args.path)
         if args.format == "json":
             print(findings_to_json(findings))
         else:
             print(_render_table(findings))
         return 1 if findings else 0
 
+    if args.command == "dast" and args.dast_command == "summary":
+        findings = run_dast_smoke(args.target, paths=args.path)
+        summary = summarize_dast_findings(findings)
+        if args.format == "json":
+            content = json.dumps(summary, indent=2)
+        else:
+            content = render_dast_summary_markdown(summary)
+        if args.output == "-":
+            print(content)
+        else:
+            out = Path(args.output)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(content, encoding="utf-8")
+            print(f"Wrote DAST summary: {out}")
+        return 1 if findings else 0
+
     if args.command == "dast" and args.dast_command == "baseline" and args.dast_baseline_command == "save":
-        findings = run_dast_smoke(args.target)
+        findings = run_dast_smoke(args.target, paths=args.probe_path)
         out = Path(args.path)
         save_baseline(out, findings, Path("."))
         print(f"Saved DAST baseline with {len(findings)} findings: {out}")
         return 0
 
     if args.command == "dast" and args.dast_command == "baseline" and args.dast_baseline_command == "compare":
-        findings = run_dast_smoke(args.target)
+        findings = run_dast_smoke(args.target, paths=args.probe_path)
         payload = load_baseline(Path(args.path))
         diff = compare_findings(findings, payload)
         if args.format == "json":
