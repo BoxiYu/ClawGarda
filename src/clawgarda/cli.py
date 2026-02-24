@@ -10,6 +10,7 @@ from .dast import run_dast_smoke
 from .dast_reporting import render_dast_summary_markdown, summarize_dast_findings
 from .deepscan import findings_to_json as deep_findings_to_json, run_deep_scan
 from .fixer import apply_safe_patch, run_fix_safe
+from .hygiene import findings_to_json as hygiene_findings_to_json, run_hygiene_secret_scan
 from .llm_auth import codex_login_device_auth, codex_login_status
 from .sast import run_sast_scan
 from .sast_reporting import render_sast_summary_markdown, summarize_sast_findings
@@ -206,6 +207,12 @@ def _build_parser() -> argparse.ArgumentParser:
     llm_sub = llm.add_subparsers(dest="llm_command", required=True)
     llm_sub.add_parser("status", help="Show ChatGPT/Codex OAuth login status")
     llm_sub.add_parser("auth", help="Start device auth via codex login")
+
+    hygiene = subparsers.add_parser("hygiene", help="Repository hygiene checks")
+    hygiene_sub = hygiene.add_subparsers(dest="hygiene_command", required=True)
+    hsecrets = hygiene_sub.add_parser("secrets", help="Scan tracked files for potential secrets")
+    hsecrets.add_argument("--workspace", default=".", help="Workspace path")
+    hsecrets.add_argument("--format", choices=["table", "json"], default="table", help="Output format")
 
     return parser
 
@@ -487,6 +494,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "llm" and args.llm_command == "auth":
         rc = codex_login_device_auth()
         return rc
+
+    if args.command == "hygiene" and args.hygiene_command == "secrets":
+        findings = run_hygiene_secret_scan(Path(args.workspace))
+        if args.format == "json":
+            print(hygiene_findings_to_json(findings))
+        else:
+            print(_render_table(findings))
+        return 1 if findings else 0
 
     parser.print_help()
     return 2
